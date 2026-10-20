@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知识库工作台 · Notebook</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" id="themeColor" content="#f5f4fa">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236a5cf5'/%3E%3Cstop offset='1' stop-color='%23b25bf0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M16 7l7 9-7 9-7-9z' fill='white'/%3E%3C/svg%3E">
+<script>
+  /* 主题：优先用户选择，其次跟随系统；提前执行避免闪烁 */
+  (function () {
+    try {
+      var saved = localStorage.getItem('kb-theme');
+      if (saved !== 'light' && saved !== 'dark') {
+        saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = saved;
+    } catch (e) {
+      document.documentElement.dataset.theme = 'light';
+    }
+  })();
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- 极光背景：三个缓慢漂移的光斑 -->
+<div class="aurora" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+
+<header class="topbar">
+  <div class="tb-left">
+    <a class="brand" href="/" title="知识库工作台">
+      <span class="logo" aria-hidden="true">◆</span>
+      <span class="brand-txt">知识库<em>工作台</em></span>
+    </a>
+    <div class="nb-picker">
+      <select id="nbSelect" title="切换知识库（Notebook）" aria-label="切换知识库"></select>
+      <span class="chev" aria-hidden="true">▾</span>
+    </div>
+    <button id="nbNew" class="pill-btn"><span class="plus" aria-hidden="true">＋</span>新建任务</button>
+    <span class="modes" id="modeBadges"></span>
+  </div>
+  <div class="tb-right">
+    <button class="icon-btn theme-toggle" id="themeToggle" title="切换深色 / 浅色主题" aria-label="切换深色或浅色主题">
+      <span class="ico-moon" aria-hidden="true">☾</span>
+      <span class="ico-sun" aria-hidden="true">☀</span>
+    </button>
+    <button type="button" class="link-btn pill-link" id="consoleLink" title="管理：解析 / 知识库 / Playground" aria-haspopup="dialog">⚙ 管理</button>
+  </div>
+</header>
+
+<div class="nlm">
+  <!-- 左：Input 资料 -->
+  <aside class="panel left" id="leftPanel">
+    <div class="panel-head">
+      <span class="ph-ico" aria-hidden="true">◫</span><b>Input</b><span class="ph-sub">资料</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="collapseL" title="折叠左栏" aria-label="折叠左栏" aria-controls="leftPanel" aria-expanded="true">◧</button>
+    </div>
+    <div class="src-drop" id="srcDrop">
+      <div class="dz-ico" aria-hidden="true">☁</div>
+      <div class="dz-hint">贴上连结或文字，或拖入档案</div>
+      <button class="ghost-btn" id="pickFile">☁ 选择档案</button>
+      <input type="file" id="fileInput" hidden multiple accept=".md,.txt,.csv,.json,.html,.htm,.xml">
+      <div class="src-alt">
+        <button class="link-btn" id="pasteBtn">粘贴文本</button>
+        <button class="link-btn" id="urlBtn">添加链接（ParseX）</button>
+      </div>
+    </div>
+    <div class="src-toolbar">
+      <span class="sel-info">全选（<span id="selCount">0/0</span>）</span>
+      <button class="check-btn on" id="toggleAll" title="全选 / 全不选" aria-label="全选或全不选" aria-pressed="true">✓</button>
+    </div>
+    <div class="src-note">☑ 勾选的资料会用来支撑回答与生成</div>
+    <div class="src-tree" id="srcTree"></div>
+  </aside>
+
+  <!-- 中：Chat -->
+  <main class="panel center">
+    <div class="panel-head center-head">
+      <span class="ph-ico" aria-hidden="true">✦</span><b>Chat</b><span class="ph-sub">对话</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="clearChat" title="清空对话" aria-label="清空对话">🗑</button>
+    </div>
+    <div class="chat-area" id="chatArea">
+      <div class="greeting" id="greeting">
+        <span class="greet-badge">✦ 基于勾选资料的问答</span>
+        <h2>你好，<br>请问今日有咩可以<span class="hl">帮到</span>你呀？</h2>
+        <div class="greet-sub">勾选左侧资料 → 提问 → 在右侧生成产物</div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div id="chatLog" aria-live="polite"></div>
+    </div>
+    <div class="chat-input-wrap">
+      <textarea id="chatInput" placeholder="输入你的问题…" rows="2" aria-label="输入问题"></textarea>
+      <div class="chat-input-foot">
+        <span class="chip-toggle" id="scopeChip">🌐 资料来源：全部</span>
+        <span class="chat-kbd"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
+        <button class="send-btn" id="chatSend" title="发送" aria-label="发送">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4.5 12h13"></path><path d="M11.5 5.5 18.5 12l-7 6.5"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- 右：Output 产物 -->
+  <aside class="panel right" id="rightPanel">
+    <div class="panel-head">
+      <span class="ph-ico" aria-hidden="true">◈</span><b>Output</b><span class="ph-sub">产物</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="collapseR" title="折叠右栏" aria-label="折叠右栏" aria-controls="rightPanel" aria-expanded="true">◨</button>
+    </div>
+    <div class="out-hint">✦ 用与对话相同的资料范围生成</div>
+    <div class="out-grid" id="outGrid"></div>
+    <div class="out-gen-head">已生成 <span class="count-pill" id="genCount">0</span></div>
+    <div class="gen-list" id="genList"></div>
+  </aside>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+<script src="app.js"></script>
+</body>
+</html>
