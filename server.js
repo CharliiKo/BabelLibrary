@@ -37,6 +37,15 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const SAMPLES_DIR = path.join(__dirname, 'sample-docs');
 const MAX_BODY = 10 * 1024 * 1024; // 10MB
 
+// 版本号统一由 VERSION 文件管理（git 标签与 /api/status 保持一致）
+const APP_VERSION = (() => {
+  try {
+    return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim() || '1.1.1';
+  } catch {
+    return '1.1.1';
+  }
+})();
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- 工具 ----------
@@ -971,7 +980,7 @@ const server = http.createServer(async (req, res) => {
       const embedCfg = embeddings.getEmbedConfig();
       return json(res, 200, {
         app: 'bailian-kb-studio',
-        version: '0.2.0',
+        version: APP_VERSION,
         modes: {
           parsex: { real: parsex.configured(), workspace_id: process.env.WORKSPACE_ID || null },
           embed: { real: embeddings.realAvailable(), model: embedCfg.model },

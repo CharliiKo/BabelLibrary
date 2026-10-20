@@ -89,3 +89,19 @@ KB_EMBED_MODEL=text-embedding-3-small
 ```bash
 node test/api-compatibility.test.js
 ```
+
+离线 · 模拟模式（无需任何 API Key / 外网），覆盖 `/api/status` 版本、`/api/settings` 归一化与掩码、`/v1/models`、三个协议端点的流式与非流式（事件序列 / `[DONE]` / citations / `file_citation`）以及 `/api/chat` 模拟链路；会在结束时自动清理临时知识库并还原设置。真实上游协议行为（含自动回退、鉴权头、SSE 帧解析）的验证记录见 `.ui-preview/reviews/v110-protocol.md`（基于本地桩上游）。
+
+## 版本管理
+
+- 当前版本：见 [VERSION](VERSION)（`/api/status` 同步上报）；版本历史见 [CHANGELOG.md](CHANGELOG.md)，版本树见 [VERSION-TREE.md](VERSION-TREE.md)。
+- 采用 git 管理：`git tag` 查看全部版本（v1.0.0 / v1.1.0 / v1.1.1），`git log --oneline --decorate` 查看演进线。
+
+## 说明与限制
+
+- **原型用途**：未做鉴权、并发控制与生产级校验，请勿暴露公网。
+- **密钥暴露面（v1.1.0 起需特别注意）**：`/v1/*` 兼容端点默认**无需鉴权**且带 `Access-Control-Allow-Origin: *`。若已通过界面保存 API Key，本机任意网页（浏览器访问不可信页面时）或本机进程均可调用这些端点并消耗该 Key、读取知识库问答。缓解措施：仅在受信任环境运行、不保存长期 Key、或通过环境变量按需注入。
+- 未显式指定 `index_id` / `kb:<id>` 无效时，服务端会回落到第一个知识库（v1.1.0 已知行为，见 CHANGELOG「已知问题」）。
+- `usage` 中的 token 数为字符数估算，非真实 token 计量。
+- PDF/Word 二进制文件本地无法解析，请使用「文件 URL」走真实 ParseX，或上传文本类文件。
+- ParseX `parse/result` 的结果字段以实际返回为准，`lib/parsex.js` 中的 `extractMarkdown` 做了防御式递归提取。
