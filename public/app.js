@@ -1,6 +1,6 @@
-// 知识库工作台 · NotebookLM 风格三栏前端
+// 知识库工作台 · NotebookLM 风格三栏前端（多协议 AI Platform 流畅增强版）
 // 左 Input（资料源 + 勾选范围）/ 中 Chat（流式问答 + 引用）/ 右 Output（六种产物）
-// UI 增强：极光背景、玻璃质感、逐条入场动画、3D 闪卡、主题切换、打字指示器
+// 兼容 OpenAI Responses API (/v1/responses)、Chat Completions (/v1/chat/completions) 与 Anthropic REST API (/v1/messages)
 
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -58,6 +58,13 @@ const fileExt = (name) => ((name || '').split('.').pop() || '').toLowerCase();
 const typingDots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
 const statusLine = (text) => `<span class="status-line">${esc(text)}${typingDots}</span>`;
 
+const PROTO_LABELS = {
+  responses: 'Responses',
+  chat_completions: 'ChatCompletions',
+  anthropic: 'Anthropic',
+  auto: 'Auto(Responses优先)',
+};
+
 /* ---------------- 全局状态 ---------------- */
 let NB = null;                 // 当前 notebook（index 详情）
 let DOC_STATUS = {};           // docId -> 全局文档状态
@@ -81,8 +88,18 @@ const outIcon = (t) => (OUT_TYPES.find((o) => o.type === t) || {}).icon || '📦
 async function renderModeBadges() {
   try {
     const s = await api('/api/status');
-    const b = (l, real) => `<span class="mode-badge ${real ? 'real' : 'mock'}"><i class="dot" aria-hidden="true"></i>${l} · ${real ? '真实' : '模拟'}</span>`;
-    $('#modeBadges').innerHTML = b('解析', s.modes.parsex.real) + b('向量', s.modes.embed.real) + b('问答', s.modes.llm.real);
+    const b = (l, real, sub, title) =>
+      `<span class="mode-badge ${real ? 'real' : 'mock'}" title="${esc(title || '点击配置 AI Platform API')}"><i class="dot" aria-hidden="true"></i>${l} · ${real ? (sub || '真实') : '模拟'}</span>`;
+    const llmProto = PROTO_LABELS[s.modes.llm.protocol] || s.modes.llm.protocol || '真实';
+    const llmTitle = s.modes.llm.real
+      ? `协议: ${s.modes.llm.protocol} | 模型: ${s.modes.llm.model} | 点击管理配置`
+      : '当前为模拟问答模式，点击配置 OpenAI Responses / Chat Completions / Anthropic API';
+    const wrap = $('#modeBadges');
+    wrap.innerHTML =
+      b('解析', s.modes.parsex.real) +
+      b('向量', s.modes.embed.real) +
+      b('问答', s.modes.llm.real, llmProto, llmTitle);
+    $$('.mode-badge', wrap).forEach((el) => el.addEventListener('click', () => $('#consoleLink').click()));
   } catch { /* 后端未连接 */ }
 }
 
@@ -312,7 +329,7 @@ setInterval(async () => {
   } catch { /* ignore */ }
 }, 2500);
 
-/* ---------------- 中栏：Chat ---------------- */
+/* ---------------- 中栏：Chat（针对 Responses API 极速流式渲染优化） ---------------- */
 const SUGGESTIONS = ['总结这些资料的重点', '比较这些资料的差异', '根据这些资料出几道练习题'];
 
 function renderChips() {
@@ -333,17 +350,29 @@ async function sendChat(text) {
   const log = $('#chatLog');
 
   const u = document.createElement('div');
-  u.className = 'msg user'; u.textContent = query;
+  u.className = 'msg user';
+  u.textContent = query;
   log.appendChild(u);
+
   const a = document.createElement('div');
   a.className = 'msg assistant';
   a.innerHTML = statusLine('正在检索勾选的资料');
-  log.setAttribute('aria-busy', 'true'); // 先标记 busy，再插入状态行，避免逐字/逐条打断读屏
+  log.setAttribute('aria-busy', 'true');
   log.appendChild(a);
   scrollChat(true);
 
   let answer = '';
   let nodes = [];
+  let rafId = null;
+
+  // 使用 requestAnimationFrame 合并高频 token 增量更新，避免 Responses API 高速流式输出时触发布局抖动
+  const flushStreamDom = () => {
+    rafId = null;
+    if (!a.classList.contains('streaming')) a.classList.add('streaming');
+    a.textContent = answer;
+    scrollChat(false);
+  };
+
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -357,32 +386,50 @@ async function sendChat(text) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buf += dec.decode(value, { stream: true });
+      buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
       let i;
       while ((i = buf.indexOf('\n\n')) >= 0) {
         const frame = buf.slice(0, i).trim();
         buf = buf.slice(i + 2);
-        if (!frame.startsWith('data:')) continue;
-        let ev; try { ev = JSON.parse(frame.slice(5).trim()); } catch { continue; }
-        if (ev.type === 'tool_calling') a.innerHTML = statusLine(ev.message);
-        else if (ev.type === 'tool_return') {
+        if (!frame) continue;
+        const dataLine = frame
+          .split('\n')
+          .find((l) => l.startsWith('data:'));
+        if (!dataLine) continue;
+        let ev;
+        try {
+          ev = JSON.parse(dataLine.slice(5).trim());
+        } catch {
+          continue;
+        }
+        if (ev.type === 'tool_calling') {
+          a.innerHTML = statusLine(ev.message);
+        } else if (ev.type === 'tool_return') {
           nodes = ev.nodes || [];
           a.innerHTML = nodes.length
             ? statusLine(`命中 ${nodes.length} 个切片，生成中`)
             : '<span class="status-line">勾选范围内未命中切片…</span>';
         } else if (ev.type === 'generating') {
-          if (!answer) a.classList.add('streaming');
-          answer += ev.text;
-          a.textContent = answer;
-          scrollChat(true);
+          answer += ev.text || '';
+          if (!rafId) {
+            rafId = requestAnimationFrame(flushStreamDom);
+          }
         } else if (ev.type === 'generation_end') {
+          if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+          }
+          a.textContent = answer;
           chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: answer });
           a.classList.remove('streaming');
           renderCites(a, nodes);
-        } else if (ev.type === 'error') throw new Error(ev.message);
+        } else if (ev.type === 'error') {
+          throw new Error(ev.message);
+        }
       }
     }
   } catch (e) {
+    if (rafId) cancelAnimationFrame(rafId);
     a.classList.remove('streaming');
     a.innerHTML = `<span style="color:var(--err)">出错了：${esc(e.message)}</span>`;
   } finally {
@@ -390,7 +437,7 @@ async function sendChat(text) {
     $('#chatSend').disabled = false;
     $('#chatSend').removeAttribute('aria-busy');
     log.removeAttribute('aria-busy');
-    scrollChat(true);
+    scrollChat(false);
   }
 }
 
@@ -552,7 +599,7 @@ async function viewArtifact(id) {
   }
 }
 
-/* ---------------- 顶栏事件 ---------------- */
+/* ---------------- 顶栏事件与 AI Platform API 管理 ---------------- */
 function wireTopbar() {
   $('#nbSelect').addEventListener('change', () => loadNotebook($('#nbSelect').value));
   $('#nbNew').addEventListener('click', () => {
@@ -571,14 +618,90 @@ function wireTopbar() {
       } }, { label: '取消' }]);
   });
   $('#consoleLink').addEventListener('click', async () => {
-    const { indices } = await api('/api/indices');
-    const { documents } = await api('/api/documents');
-    const mask = openModal('管理', `
+    const [{ indices }, { documents }, { settings }] = await Promise.all([
+      api('/api/indices'),
+      api('/api/documents'),
+      api('/api/settings'),
+    ]);
+    const mask = openModal('管理与 AI Platform API 设置', `
+      <div class="hint-sm lead">AI Platform API 接入配置（兼容 Responses / Chat Completions / Anthropic）</div>
+      <div class="api-card">
+        <div class="api-grid">
+          <label class="field">
+            <span class="lb">API 协议类型（优先推荐 Responses）</span>
+            <select id="cfgProtocol">
+              <option value="responses" ${settings.protocol === 'responses' ? 'selected' : ''}>OpenAI Responses API (/v1/responses · 首选流畅)</option>
+              <option value="chat_completions" ${settings.protocol === 'chat_completions' ? 'selected' : ''}>OpenAI Chat Completions (/v1/chat/completions)</option>
+              <option value="anthropic" ${settings.protocol === 'anthropic' ? 'selected' : ''}>Anthropic Messages REST API (/v1/messages)</option>
+              <option value="auto" ${settings.protocol === 'auto' ? 'selected' : ''}>自动探测 (Responses 优先 → 自动回退)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="lb">模型名称 (Model)</span>
+            <input id="cfgModel" value="${esc(settings.model || '')}" placeholder="如 gpt-4o-mini / claude-3-5-sonnet-latest / qwen-plus">
+          </label>
+          <label class="field">
+            <span class="lb">API Base URL</span>
+            <input id="cfgBaseUrl" value="${esc(settings.base_url || '')}" placeholder="如 https://api.openai.com/v1 或 https://api.anthropic.com">
+          </label>
+          <label class="field">
+            <span class="lb">API Key ${settings.has_api_key ? `（已配置 ${esc(settings.api_key_masked)}，留空保持不变）` : '（未配置，当前为模拟模式）'}</span>
+            <input id="cfgApiKey" type="password" placeholder="${settings.has_api_key ? '留空保持原密钥，输入新密钥覆盖' : 'sk-...'}">
+          </label>
+        </div>
+        <div class="api-actions">
+          <button type="button" class="api-btn primary" id="btnSaveApi">💾 保存 API 配置</button>
+          <button type="button" class="api-btn" id="btnTestApi">⚡ 测试连接与流式延迟</button>
+          <span class="hint-sm" style="margin-left:auto">同时对外暴露兼容端点：<code>/v1/responses</code> · <code>/v1/chat/completions</code> · <code>/v1/messages</code></span>
+        </div>
+        <div class="api-test-res" id="apiTestRes"></div>
+      </div>
+
       <div class="hint-sm lead">知识库（Notebook）</div>
       ${indices.map((i) => `<div class="gen-item"><span class="gico">📚</span><div class="gmain"><div class="gtitle">${esc(i.name)}</div><div class="gtime">${i.document_count} 资料 · ${i.chunk_count} 切片 · ${i.type === 'remote' ? '远端' : i.embed_mode === 'real' ? '真实向量' : '模拟向量'}</div></div><button class="gdel" data-kbdel="${i.id}" aria-label="删除知识库">✕</button></div>`).join('') || '<div class="src-empty">无</div>'}
       <div class="hint-sm lead mt">全部文档（含未入库）</div>
       ${documents.slice(0, 30).map((d) => `<div class="gen-item"><span class="gico">${fileIcon(d.name)}</span><div class="gmain"><div class="gtitle">${esc(d.name)}</div><div class="gtime">${d.status} · ${d.chars} 字</div></div><button class="gdel" data-docdel="${d.id}" aria-label="删除文档">✕</button></div>`).join('') || '<div class="src-empty">无</div>'}`, [
       { label: '关闭' }]);
+
+    const collectForm = () => {
+      const rawKey = $('#cfgApiKey', mask).value.trim();
+      return {
+        protocol: $('#cfgProtocol', mask).value,
+        model: $('#cfgModel', mask).value.trim(),
+        base_url: $('#cfgBaseUrl', mask).value.trim(),
+        api_key: rawKey ? rawKey : '__KEEP__',
+      };
+    };
+
+    $('#btnSaveApi', mask).addEventListener('click', async () => {
+      try {
+        await api('/api/settings', { method: 'POST', body: collectForm() });
+        await renderModeBadges();
+        toast('AI Platform API 配置已保存并生效');
+      } catch (e) {
+        toast(e.message, true);
+      }
+    });
+
+    $('#btnTestApi', mask).addEventListener('click', async () => {
+      const resBox = $('#apiTestRes', mask);
+      const btn = $('#btnTestApi', mask);
+      btn.disabled = true;
+      resBox.className = 'api-test-res';
+      resBox.style.display = 'block';
+      resBox.textContent = '正在测试流式连接…';
+      try {
+        const r = await api('/api/llm/test', { method: 'POST', body: collectForm() });
+        resBox.className = 'api-test-res ok';
+        resBox.innerHTML = `✓ 连接成功 · 协议 <b>${esc(r.used_protocol)}</b> · 首字延迟 (TTFT) <b>${r.ttft_ms}ms</b> · 总耗时 <b>${r.total_ms}ms</b><br><span class="hint-sm">Endpoint: ${esc(r.endpoint)} · 回复: ${esc(r.preview)}</span>`;
+      } catch (e) {
+        resBox.className = 'api-test-res err';
+        resBox.textContent = `✕ 连接失败：${e.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     $$('button[data-kbdel]', mask).forEach((b) => b.addEventListener('click', async () => {
       if (!confirm('删除该知识库及其切片？')) return;
       await api(`/api/indices/${b.dataset.kbdel}`, { method: 'DELETE' });

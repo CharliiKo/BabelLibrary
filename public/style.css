@@ -1650,3 +1650,74 @@ table.xl tbody tr:hover { background: var(--brand-soft-2); }
   .aurora .blob { display: none; }
   .fcard .f-inner { transition: none; }
 }
+
+/* ---------------- AI Platform API 设置增强 ---------------- */
+.modal select {
+  width: 100%;
+  border: 1px solid var(--line-input);
+  border-radius: 11px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  outline: none;
+  background: var(--panel-2);
+  color: var(--ink);
+  transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
+}
+.modal select:focus {
+  border-color: var(--brand);
+  background: var(--panel-solid);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.api-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: var(--panel-2);
+  margin-bottom: 16px;
+}
+.api-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+@media (max-width: 600px) {
+  .api-grid { grid-template-columns: 1fr; }
+}
+.api-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.api-btn {
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  border-radius: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink);
+  transition: all var(--dur-1) var(--ease);
+}
+.api-btn:hover { border-color: var(--brand); color: var(--brand-ink); transform: translateY(-1px); }
+.api-btn.primary {
+  background: var(--brand-grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--glow);
+}
+.api-test-res {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  display: none;
+}
+.api-test-res.ok { display: block; border-color: var(--ok); background: var(--ok-soft); color: color-mix(in srgb, var(--ok) 75%, var(--ink)); }
+.api-test-res.err { display: block; border-color: var(--err); background: var(--err-soft); color: var(--err-ink); }
+.mode-badge { cursor: pointer; }
