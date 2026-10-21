@@ -2,12 +2,14 @@
 
 kb-studio 的版本演进线。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)，以 git **标签**为准（`git tag -l`）。
 
+**远端仓库**：https://github.com/CharliiKo/BabelLibrary （`main` 分支 + 标签 `v1.0.0` / `v1.1.0` / `v1.1.1`）
+
 ## 演进图
 
 ```
-main ──● v1.0.0 ──● v1.1.0 ──● v1.1.1 (HEAD)
-        8dc1356     e413a58     <见 git tag>
-        2026-10-20  2026-10-20  2026-10-20
+main ──● v1.0.0 ──● v1.1.0 ──● v1.1.1 ──● chore: 合并远端初始提交（保留 LICENSE）
+        8dc1356     e413a58     2648ed1      d8ad84b
+        2026-10-20  2026-10-20  2026-10-20   (远端初始化)
 ```
 
 ## 版本谱系
@@ -16,7 +18,7 @@ main ──● v1.0.0 ──● v1.1.0 ──● v1.1.1 (HEAD)
 |---|---|---|---|---|
 | **v1.0.0** (`8dc1356`) | Aurora UI 重设计与稳定性 | DeepSeek 端 | 项目基线首版：百炼「ParseX + RAG + 问答」三段式原型 + 全新视觉/动效/无障碍体系 | 设计 token（浅/深主题）、玻璃面板、极光背景、21 组动效、键盘全量可达、产物下载契约修复 |
 | **v1.1.0** (`e413a58`) | AI Platform 多协议兼容 | Gemini4-Argon | 基于 v1.0.0；代码自 `kb-studio.zip` **原样入库**（SHA-256 `F9FCDED1…BEEBC`），共 7 文件 +2471/−245，零行为修改 | 三大协议出站适配（Responses/Chat Completions/Anthropic + auto 回退）、对外 `/v1/*` 兼容端点、`/api/settings` 运行时配置、配置 UI、OpenAI 兼容向量化 |
-| **v1.1.1** (HEAD) | 发布工程 | DeepSeek 端 | 基于 v1.1.0 的**补丁版本**，不改变功能行为 | 补齐 README 声称的离线自测套件（12/12）、`VERSION` 文件驱动版本号、README 安全说明恢复、空 API Key 不再遮蔽环境变量、CHANGELOG / 版本树文档 |
+| **v1.1.1** (`2648ed1`) | 发布工程 | DeepSeek 端 | 基于 v1.1.0 的**补丁版本**，不改变功能行为 | 补齐 README 声称的离线自测套件（12/12）、`VERSION` 文件驱动版本号、README 安全说明恢复、空 API Key 不再遮蔽环境变量、CHANGELOG / 版本树文档 |
 
 ## 血统说明
 

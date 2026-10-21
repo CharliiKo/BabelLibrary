@@ -95,7 +95,8 @@ node test/api-compatibility.test.js
 ## 版本管理
 
 - 当前版本：见 [VERSION](VERSION)（`/api/status` 同步上报）；版本历史见 [CHANGELOG.md](CHANGELOG.md)，版本树见 [VERSION-TREE.md](VERSION-TREE.md)。
-- 采用 git 管理：`git tag` 查看全部版本（v1.0.0 / v1.1.0 / v1.1.1），`git log --oneline --decorate` 查看演进线。
+- 远端仓库：<https://github.com/CharliiKo/BabelLibrary>（`main` 分支 + 标签 `v1.0.0` / `v1.1.0` / `v1.1.1`）。
+- 采用 git 管理：`git tag` 查看全部版本，`git log --oneline --decorate` 查看演进线。
 
 ## 说明与限制
 
